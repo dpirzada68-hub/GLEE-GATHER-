@@ -1,0 +1,1609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glee Gather - Inventory & Kitting Management Portal</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#fffbe1',
+                            100: '#fff3b8',
+                            200: '#ffe570',
+                            300: '#ffd22d',
+                            400: '#fca311',
+                            500: '#f59e0b',
+                            600: '#d97706',
+                            700: '#b45309',
+                            800: '#92400e',
+                            900: '#78350f',
+                            dark: '#12131a',
+                            card: '#1a1c24'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Fredoka', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- SheetJS for Excel Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- jsPDF and AutoTable for PDF Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; background-image: radial-gradient(circle at top right, rgba(252, 163, 17, 0.05), transparent 40%); }
+        .font-brand { font-family: 'Fredoka', sans-serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .modal { transition: opacity 0.25s ease, transform 0.25s ease; }
+        .modal-hidden { opacity: 0; pointer-events: none; transform: translate(-50%, -48%) scale(0.96); }
+        .modal-active { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%) scale(1); }
+
+        #loading-screen { transition: opacity 0.6s ease, visibility 0.6s ease; }
+        .loader-hidden { opacity: 0; visibility: hidden; }
+        @keyframes robot-float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-12px); }
+        }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 15px rgba(245, 158, 11, 0.3); }
+            50% { box-shadow: 0 0 35px rgba(245, 158, 11, 0.8); }
+        }
+        .animate-float { animation: robot-float 2.5s ease-in-out infinite; }
+        .animate-glow { animation: pulse-glow 2.5s ease-in-out infinite; }
+        .loading-dot { animation: pulse-glow 1s infinite alternate; }
+        .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+        .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes toast-in {
+            from { opacity: 0; transform: translateY(12px) scale(0.96); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .toast-enter { animation: toast-in 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+
+        @keyframes tab-fade-in {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .tab-content:not(.hidden) { animation: tab-fade-in 0.35s ease; }
+
+        .nav-btn { position: relative; }
+        .nav-btn.nav-active::before {
+            content: '';
+            position: absolute;
+            left: -0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 60%;
+            border-radius: 4px;
+            background: #fca311;
+        }
+
+        .lift-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .lift-hover:hover { transform: translateY(-3px); }
+
+        .styled-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .styled-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .styled-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 8px; }
+        .styled-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+
+        button { transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, opacity 0.15s ease; }
+        button:not(:disabled):active { transform: scale(0.97); }
+    </style>
+</head>
+<body class="h-screen flex overflow-hidden text-slate-800">
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center">
+        <div class="animate-float flex flex-col items-center">
+            <div class="relative w-28 h-28 bg-amber-500 rounded-[2rem] p-3.5 flex items-center justify-center shadow-lg shadow-amber-500/30 animate-glow mb-6">
+                <svg viewBox="0 0 100 100" class="w-full h-full text-slate-900">
+                    <path d="M50 20 L50 8 M50 8 A 4 4 0 1 1 50 7.9" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" fill="#facc15" />
+                    <rect x="15" y="20" width="70" height="55" rx="16" fill="#f59e0b" stroke="#1e293b" stroke-width="3"/>
+                    <rect x="25" y="30" width="50" height="35" rx="10" fill="#1e293b" />
+                    <ellipse cx="38" cy="47" rx="6" ry="8" fill="#ffffff" />
+                    <ellipse cx="62" cy="47" rx="6" ry="8" fill="#ffffff" />
+                    <path d="M 44 54 Q 50 58 56 54" stroke="#ffffff" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+                </svg>
+            </div>
+            
+            <h1 class="text-5xl font-bold font-brand tracking-wider text-white mb-3">GLEE<span class="text-amber-400 ml-1">GATHER</span></h1>
+            
+            <div class="flex items-center space-x-2 mt-4">
+                <div class="w-2.5 h-2.5 bg-amber-500 rounded-full loading-dot"></div>
+                <div class="w-2.5 h-2.5 bg-amber-500 rounded-full loading-dot"></div>
+                <div class="w-2.5 h-2.5 bg-amber-500 rounded-full loading-dot"></div>
+            </div>
+            <p class="text-slate-400 text-[11px] mt-6 font-bold tracking-[0.2em] uppercase">Initializing Portal System</p>
+        </div>
+    </div>
+
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="fixed inset-0 z-[95] bg-slate-950 flex items-center justify-center p-4 hidden">
+        <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl shadow-amber-500/10">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-amber-500/10 border border-amber-500/30 text-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl shadow-lg shadow-amber-500/20">
+                    <i class="ph ph-lock-key"></i>
+                </div>
+                <h2 class="text-2xl font-bold font-brand text-white">Inventory Manager Login</h2>
+                <p class="text-xs text-slate-400 mt-1">Glee Gather Portal Security</p>
+            </div>
+
+            <form id="form-login" onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Username</label>
+                    <div class="relative">
+                        <i class="ph ph-user absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-lg"></i>
+                        <input type="text" id="login-username" required placeholder="Enter username" class="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 text-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Password</label>
+                    <div class="relative">
+                        <i class="ph ph-key absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-lg"></i>
+                        <input type="password" id="login-password" required placeholder="Enter password" class="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 text-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all">
+                    </div>
+                </div>
+
+                <div id="login-error" class="hidden p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold text-center">
+                    Invalid Username or Password!
+                </div>
+
+                <div class="pt-2">
+                    <button type="submit" class="w-full py-3.5 px-4 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-sm rounded-xl transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center">
+                        <i class="ph ph-sign-in mr-2 text-lg"></i> Sign In to Portal
+                    </button>
+                </div>
+            </form>
+
+            <div class="mt-6 pt-5 border-t border-slate-800/80 text-center text-xs text-slate-500 space-y-1">
+                <p>Default Login Credentials:</p>
+                <p class="font-mono text-amber-400">User: <span id="hint-user">Sameer</span> | Pass: <span id="hint-pass">samee776</span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile sidebar backdrop -->
+    <div id="sidebar-backdrop" onclick="toggleMobileMenu()" class="hidden fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40"></div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[200] flex flex-col gap-2 items-end pointer-events-none"></div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-64 bg-slate-900 text-white flex flex-col hidden md:flex transition-all duration-300 shadow-xl border-r border-slate-800 z-50 flex-shrink-0 absolute md:relative h-full">
+        <div class="h-20 flex items-center px-5 border-b border-slate-800/80 bg-slate-950/40">
+            <div class="flex items-center space-x-3">
+                <div class="relative w-11 h-11 bg-amber-500 rounded-xl p-1.5 flex items-center justify-center shadow-lg shadow-amber-500/30 flex-shrink-0">
+                    <svg viewBox="0 0 100 100" class="w-full h-full text-slate-900">
+                        <path d="M50 20 L50 8 M50 8 A 4 4 0 1 1 50 7.9" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" fill="#facc15" />
+                        <rect x="15" y="20" width="70" height="55" rx="16" fill="#f59e0b" stroke="#1e293b" stroke-width="3"/>
+                        <rect x="25" y="30" width="50" height="35" rx="10" fill="#1e293b" />
+                        <ellipse cx="38" cy="47" rx="6" ry="8" fill="#ffffff" />
+                        <ellipse cx="62" cy="47" rx="6" ry="8" fill="#ffffff" />
+                        <path d="M 44 54 Q 50 58 56 54" stroke="#ffffff" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold font-brand tracking-wide leading-none text-white">GLEE<span class="text-amber-400 ml-1">GATHER</span></h1>
+                    <p class="text-[10px] text-slate-400 font-medium tracking-wider uppercase mt-0.5">Inventory Portal</p>
+                </div>
+            </div>
+        </div>
+
+        <nav class="flex-1 overflow-y-auto py-5 px-3 space-y-1">
+            <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn w-full flex items-center px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-all group nav-active bg-amber-500 text-slate-950 font-bold shadow-md">
+                <i class="ph ph-squares-four text-lg mr-3"></i> Dashboard
+            </button>
+
+            <button onclick="switchTab('categories')" id="nav-categories" class="nav-btn w-full flex items-center px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-all group">
+                <i class="ph ph-folders text-lg mr-3 text-slate-400 group-hover:text-amber-400"></i> Categories / Subsections
+            </button>
+
+            <button onclick="switchTab('new-inventory')" id="nav-new-inventory" class="nav-btn w-full flex items-center px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-all group">
+                <i class="ph ph-package text-lg mr-3 text-slate-400 group-hover:text-amber-400"></i> New Inventory
+            </button>
+
+            <button onclick="switchTab('old-inventory')" id="nav-old-inventory" class="nav-btn w-full flex items-center px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-all group">
+                <i class="ph ph-clock-counter-clockwise text-lg mr-3 text-slate-400 group-hover:text-amber-400"></i> Old Inventory
+            </button>
+
+            <button onclick="switchTab('remove-inventory')" id="nav-remove-inventory" class="nav-btn w-full flex items-center px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-all group">
+                <i class="ph ph-trash-simple text-lg mr-3 text-slate-400 group-hover:text-rose-400"></i> Remove Inventory
+            </button>
+
+            <button onclick="switchTab('recycle-bin')" id="nav-recycle-bin" class="nav-btn w-full flex items-center px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-all group">
+                <i class="ph ph-trash text-lg mr-3 text-slate-400 group-hover:text-amber-400"></i> Recycle Bin
+            </button>
+
+            <button onclick="switchTab('kits')" id="nav-kits" class="nav-btn w-full flex items-center px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-all group">
+                <i class="ph ph-toolbox text-lg mr-3 text-slate-400 group-hover:text-amber-400"></i> Kitting System
+            </button>
+
+            <button onclick="switchTab('persons')" id="nav-persons" class="nav-btn w-full flex items-center px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-all group">
+                <i class="ph ph-users-three text-lg mr-3 text-slate-400 group-hover:text-amber-400"></i> Person Details
+            </button>
+
+            <button onclick="switchTab('defects')" id="nav-defects" class="nav-btn w-full flex items-center px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-all group">
+                <i class="ph ph-warning-diamond text-lg mr-3 text-slate-400 group-hover:text-rose-400"></i> Defected Products
+            </button>
+
+            <button onclick="switchTab('transactions')" id="nav-transactions" class="nav-btn w-full flex items-center px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-all group">
+                <i class="ph ph-arrows-down-up text-lg mr-3 text-slate-400 group-hover:text-amber-400"></i> Given & Returns
+            </button>
+
+            <button onclick="switchTab('archive')" id="nav-archive" class="nav-btn w-full flex items-center px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-all group">
+                <i class="ph ph-archive-box text-lg mr-3 text-slate-400 group-hover:text-amber-400"></i> Archive
+            </button>
+
+            <div class="pt-3 mt-3 border-t border-slate-800 space-y-1">
+                <button onclick="switchTab('reports')" id="nav-reports" class="nav-btn w-full flex items-center px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-all group">
+                    <i class="ph ph-chart-line-up text-lg mr-3 text-slate-400 group-hover:text-amber-400"></i> Reports & Export
+                </button>
+
+                <button onclick="openModal('control-panel-modal')" class="w-full flex items-center px-3.5 py-2.5 rounded-xl text-left text-xs font-bold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 transition-all group">
+                    <i class="ph ph-gear text-lg mr-3 text-amber-400"></i> Control Panel / Settings
+                </button>
+            </div>
+        </nav>
+
+        <div class="p-4 border-t border-slate-800/80 bg-slate-950/20 flex items-center text-xs text-slate-400">
+            <span>System v3.3</span>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+        <header class="h-20 bg-white/90 backdrop-blur-sm border-b border-slate-200/80 shadow-sm flex items-center justify-between px-6 z-10 sticky top-0">
+            <div class="flex items-center space-x-3">
+                <button onclick="toggleMobileMenu()" class="md:hidden text-slate-600 hover:text-amber-500 p-2 rounded-lg border border-slate-200">
+                    <i class="ph ph-list text-2xl"></i>
+                </button>
+                <div>
+                    <h2 id="page-title" class="text-xl font-bold text-slate-900 tracking-tight">Dashboard Overview</h2>
+                    <p id="page-subtitle" class="text-xs text-slate-500 hidden sm:block">Monitor stock levels, issuances, person ledgers and defected units</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <button onclick="openModal('add-person-modal')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-2 rounded-xl font-bold text-xs flex items-center transition-all hidden sm:flex">
+                    <i class="ph ph-user-plus text-base mr-1.5 text-amber-600"></i> Add Person
+                </button>
+                <button onclick="openModal('add-category-modal')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-2 rounded-xl font-bold text-xs flex items-center transition-all hidden md:flex">
+                    <i class="ph ph-folder-plus text-base mr-1.5 text-blue-600"></i> Make Category
+                </button>
+                <button onclick="openModal('add-product-modal')" class="bg-amber-500 hover:bg-amber-600 text-slate-950 px-4 py-2 rounded-xl font-bold text-xs flex items-center shadow-sm shadow-amber-500/20 transition-all">
+                    <i class="ph ph-plus-circle text-base sm:mr-1.5 font-bold"></i> <span class="hidden sm:inline">Add Product</span>
+                </button>
+
+                <div class="h-8 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+                <div class="flex items-center space-x-2 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200">
+                    <div class="w-8 h-8 bg-slate-900 text-amber-400 rounded-xl font-bold flex items-center justify-center text-xs shadow-sm" id="header-user-avatar">S</div>
+                    <div class="hidden lg:block text-left pr-1">
+                        <p id="header-user-name" class="text-xs font-bold text-slate-800 leading-tight">Sameer</p>
+                        <p class="text-[10px] text-amber-600 font-semibold leading-tight">Inventory Manager</p>
+                    </div>
+                    <button onclick="openModal('control-panel-modal')" title="Settings" class="p-1.5 hover:bg-amber-500 hover:text-slate-950 text-slate-600 rounded-xl transition-all hidden sm:block">
+                        <i class="ph ph-gear text-lg"></i>
+                    </button>
+                    <button onclick="handleLogout()" title="Logout" class="p-1.5 hover:bg-rose-500 hover:text-white text-slate-600 rounded-xl transition-all">
+                        <i class="ph ph-sign-out text-lg"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-auto p-4 sm:p-6 bg-slate-50/80 styled-scrollbar">
+
+            <!-- 1. Dashboard Tab -->
+            <div id="tab-dashboard" class="tab-content space-y-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div class="lift-hover bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Active Products</p>
+                            <h3 id="stat-total-products" class="text-2xl font-bold text-slate-900 mt-0.5">0</h3>
+                        </div>
+                        <div class="w-11 h-11 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center text-2xl font-bold">
+                            <i class="ph ph-package"></i>
+                        </div>
+                    </div>
+
+                    <div class="lift-hover bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Total Value</p>
+                            <h3 id="stat-total-value" class="text-xl font-bold text-slate-900 mt-0.5">PKR 0</h3>
+                        </div>
+                        <div class="w-11 h-11 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center text-2xl font-bold">
+                            <i class="ph ph-coins"></i>
+                        </div>
+                    </div>
+
+                    <div class="lift-hover bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">In Use (Issued)</p>
+                            <h3 id="stat-given-out" class="text-2xl font-bold text-blue-600 mt-0.5">0</h3>
+                        </div>
+                        <div class="w-11 h-11 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center text-2xl font-bold">
+                            <i class="ph ph-hand-holding"></i>
+                        </div>
+                    </div>
+
+                    <div class="lift-hover bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Registered Persons</p>
+                            <h3 id="stat-total-persons" class="text-2xl font-bold text-purple-600 mt-0.5">0</h3>
+                        </div>
+                        <div class="w-11 h-11 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center text-2xl font-bold">
+                            <i class="ph ph-users-three"></i>
+                        </div>
+                    </div>
+
+                    <div class="lift-hover bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Defected Items</p>
+                            <h3 id="stat-defected" class="text-2xl font-bold text-rose-600 mt-0.5">0</h3>
+                        </div>
+                        <div class="w-11 h-11 bg-rose-100 text-rose-600 rounded-xl flex items-center justify-center text-2xl font-bold">
+                            <i class="ph ph-warning-diamond"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity Logs -->
+                <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                        <div class="flex items-center space-x-2">
+                            <i class="ph ph-clock-counter-clockwise text-amber-500 text-xl"></i>
+                            <h3 class="font-bold text-slate-800">System Activity Log</h3>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="renderDashboard()" title="Refresh Log" class="bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold flex items-center">
+                                <i class="ph ph-arrows-clockwise text-sm mr-1"></i> Refresh
+                            </button>
+                            <button onclick="confirmLogResetModal()" title="Reset Log" class="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg px-2.5 py-1.5 text-xs font-bold flex items-center">
+                                <i class="ph ph-trash text-sm mr-1"></i> Reset
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse min-w-[600px]">
+                            <thead>
+                                <tr class="border-b border-slate-100 bg-slate-50/80 text-[11px] uppercase tracking-wider text-slate-400 font-bold">
+                                    <th class="px-6 py-3 w-40">Time</th>
+                                    <th class="px-6 py-3 w-48">Action</th>
+                                    <th class="px-6 py-3 w-48">Subject / Product</th>
+                                    <th class="px-6 py-3">Details / Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody id="activity-logs-body" class="divide-y divide-slate-100 text-sm"></tbody>
+                        </table>
+                        <div id="no-logs" class="p-8 text-center text-slate-400 hidden">No system activity logged yet.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Categories Tab -->
+            <div id="tab-categories" class="tab-content hidden space-y-6">
+                <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-lg">Inventory Subsections & Categories</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">Organize products under custom categories like Laptops, Furniture, Accessories etc.</p>
+                    </div>
+                    <button onclick="openModal('add-category-modal')" class="bg-amber-500 hover:bg-amber-600 text-slate-950 px-4 py-2.5 rounded-xl font-bold text-xs flex items-center shadow-md w-full sm:w-auto justify-center">
+                        <i class="ph ph-folder-plus text-base mr-2"></i> Create New Category
+                    </button>
+                </div>
+
+                <div id="categories-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            </div>
+
+            <!-- 3. New Inventory Tab -->
+            <div id="tab-new-inventory" class="tab-content hidden space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+                    <div class="relative flex-1 max-w-md w-full">
+                        <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                        <input type="text" id="search-new" oninput="renderInventory('new')" placeholder="Search new inventory..." class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                    <div class="text-xs text-slate-500 font-medium">
+                        Showing <span id="new-count-badge" class="font-bold text-amber-600">0</span> items
+                    </div>
+                </div>
+
+                <div id="new-subsections-container" class="space-y-8"></div>
+                <div id="no-new-products" class="p-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200/80 hidden flex-col items-center">
+                    <i class="ph ph-package text-4xl mb-2 text-amber-500"></i>
+                    <p class="font-semibold text-slate-700">No new inventory products found</p>
+                </div>
+            </div>
+
+            <!-- 4. Old Inventory Tab -->
+            <div id="tab-old-inventory" class="tab-content hidden space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+                    <div class="relative flex-1 max-w-md w-full">
+                        <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                        <input type="text" id="search-old" oninput="renderInventory('old')" placeholder="Search old inventory..." class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                    <div class="text-xs text-slate-500 font-medium">
+                        Showing <span id="old-count-badge" class="font-bold text-amber-600">0</span> items
+                    </div>
+                </div>
+
+                <div id="old-subsections-container" class="space-y-8"></div>
+                <div id="no-old-products" class="p-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200/80 hidden flex-col items-center">
+                    <i class="ph ph-clock-counter-clockwise text-4xl mb-2 text-slate-400"></i>
+                    <p class="font-semibold text-slate-700">No old inventory products found</p>
+                </div>
+            </div>
+
+            <!-- 5. Remove Inventory Tab -->
+            <div id="tab-remove-inventory" class="tab-content hidden space-y-6">
+                <div class="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    <div class="flex items-start space-x-3">
+                        <div class="p-3 bg-rose-100 text-rose-600 rounded-2xl text-2xl flex-shrink-0"><i class="ph ph-trash-simple"></i></div>
+                        <div>
+                            <h3 class="font-bold text-slate-900 text-lg">Remove Inventory</h3>
+                            <p class="text-xs text-slate-600 mt-0.5">Soft-delete products, persons or categories to Recycle Bin without losing records.</p>
+                        </div>
+                    </div>
+                    <button onclick="switchTab('recycle-bin')" class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center shadow-md">
+                        <i class="ph ph-trash text-base mr-2"></i> Open Recycle Bin
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                            <div><h4 class="font-bold text-slate-800">Inventory Products</h4></div>
+                            <span id="remove-active-product-count" class="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg">0</span>
+                        </div>
+                        <div id="remove-products-list" class="p-4 space-y-2 max-h-[420px] overflow-y-auto styled-scrollbar"></div>
+                        <div id="no-remove-products" class="hidden p-8 text-center text-slate-400 text-sm">No active products available to remove.</div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                            <div><h4 class="font-bold text-slate-800">People</h4></div>
+                            <span id="remove-active-person-count" class="text-xs font-bold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-lg">0</span>
+                        </div>
+                        <div id="remove-persons-list" class="p-4 space-y-2 max-h-[420px] overflow-y-auto styled-scrollbar"></div>
+                        <div id="no-remove-persons" class="hidden p-8 text-center text-slate-400 text-sm">No active persons available to remove.</div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden lg:col-span-2">
+                        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                            <div><h4 class="font-bold text-slate-800">Categories / Subsections</h4></div>
+                            <span id="remove-active-category-count" class="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg">0</span>
+                        </div>
+                        <div id="remove-categories-list" class="p-4 space-y-2 max-h-[420px] overflow-y-auto styled-scrollbar"></div>
+                        <div id="no-remove-categories" class="hidden p-8 text-center text-slate-400 text-sm">No active categories available to remove.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. Recycle Bin Tab -->
+            <div id="tab-recycle-bin" class="tab-content hidden space-y-6">
+                <div class="bg-slate-900 rounded-2xl p-5 text-white shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    <div class="flex items-start space-x-3">
+                        <div class="p-3 bg-amber-500 text-slate-950 rounded-2xl text-2xl flex-shrink-0"><i class="ph ph-trash"></i></div>
+                        <div>
+                            <h3 class="font-bold text-lg">Recycle Bin</h3>
+                            <p class="text-xs text-slate-300 mt-0.5">Recover deleted items or delete them permanently.</p>
+                        </div>
+                    </div>
+                    <span class="text-xs font-bold bg-white/10 border border-white/10 px-3 py-2 rounded-xl">Permanent Delete Locked Outside Recycle Bin</span>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                            <div><h4 class="font-bold text-slate-800">Deleted Products</h4></div>
+                            <span id="recycle-product-count" class="text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-lg">0</span>
+                        </div>
+                        <div id="recycle-products-list" class="p-4 space-y-2 max-h-[500px] overflow-y-auto styled-scrollbar"></div>
+                        <div id="no-recycle-products" class="hidden p-8 text-center text-slate-400 text-sm">Recycle Bin is empty for products.</div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                            <div><h4 class="font-bold text-slate-800">Deleted Persons</h4></div>
+                            <span id="recycle-person-count" class="text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-lg">0</span>
+                        </div>
+                        <div id="recycle-persons-list" class="p-4 space-y-2 max-h-[500px] overflow-y-auto styled-scrollbar"></div>
+                        <div id="no-recycle-persons" class="hidden p-8 text-center text-slate-400 text-sm">Recycle Bin is empty for persons.</div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                            <div><h4 class="font-bold text-slate-800">Deleted Categories</h4></div>
+                            <span id="recycle-category-count" class="text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-lg">0</span>
+                        </div>
+                        <div id="recycle-categories-list" class="p-4 space-y-2 max-h-[500px] overflow-y-auto styled-scrollbar"></div>
+                        <div id="no-recycle-categories" class="hidden p-8 text-center text-slate-400 text-sm">Recycle Bin is empty for categories.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 7. Kitting System Tab -->
+            <div id="tab-kits" class="tab-content hidden space-y-6">
+                <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-lg">Equipment Kits & Bundles</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">Bundle multiple products together and issue them in a single click</p>
+                    </div>
+                    <button onclick="openModal('add-kit-modal')" class="bg-amber-500 hover:bg-amber-600 text-slate-950 px-4 py-2.5 rounded-xl font-bold text-xs flex items-center shadow-md justify-center">
+                        <i class="ph ph-plus-circle text-base mr-2"></i> Create New Kit
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="kits-grid"></div>
+                <div id="no-kits" class="p-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200/80 hidden flex-col items-center">
+                    <i class="ph ph-toolbox text-4xl mb-2 text-slate-300"></i>
+                    <p class="font-semibold text-slate-700">No Kit Bundles created yet.</p>
+                </div>
+            </div>
+
+            <!-- 8. Person Details Tab -->
+            <div id="tab-persons" class="tab-content hidden space-y-6">
+                <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-lg">Personnel Management</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">Track products received, returned, and currently in use per person</p>
+                    </div>
+                    <button onclick="openModal('add-person-modal')" class="bg-amber-500 hover:bg-amber-600 text-slate-950 px-4 py-2.5 rounded-xl font-bold text-xs flex items-center shadow-md justify-center">
+                        <i class="ph ph-user-plus text-base mr-2"></i> Register New Person
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" id="persons-grid"></div>
+                <div id="no-persons" class="p-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200/80 hidden flex-col items-center">
+                    <i class="ph ph-users-three text-4xl mb-2 text-slate-300"></i>
+                    <p class="font-semibold text-slate-700">No personnel registered yet.</p>
+                </div>
+            </div>
+
+            <!-- 9. Defected Products Tab -->
+            <div id="tab-defects" class="tab-content hidden space-y-6">
+                <div class="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex items-start space-x-3">
+                    <i class="ph ph-warning-diamond text-rose-600 text-2xl flex-shrink-0 mt-0.5"></i>
+                    <div>
+                        <h4 class="font-bold text-rose-950 text-sm">Defected Products Hub</h4>
+                        <p class="text-xs text-rose-800/80 mt-0.5">All defected items returned by users are listed here. Repair and restore them or scrap them.</p>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse min-w-[700px]">
+                            <thead>
+                                <tr class="border-b border-slate-100 bg-slate-50 text-[11px] uppercase tracking-wider text-slate-400 font-bold">
+                                    <th class="px-6 py-3.5">Product Name</th>
+                                    <th class="px-6 py-3.5 text-center">Defect Qty</th>
+                                    <th class="px-6 py-3.5 text-center">Status</th>
+                                    <th class="px-6 py-3.5 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="defects-body" class="divide-y divide-slate-100 text-sm"></tbody>
+                        </table>
+                        <div id="no-defects" class="p-12 text-center text-slate-400 hidden flex-col items-center">
+                            <i class="ph ph-check-circle text-4xl mb-2 text-emerald-400"></i>
+                            <p class="font-medium text-slate-600">No defected items logged in the system.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 10. Transactions Tab -->
+            <div id="tab-transactions" class="tab-content hidden space-y-6">
+                <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                        <h3 class="font-bold text-slate-800 text-lg">Issued Items & Return Tracker</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse min-w-[800px]">
+                            <thead>
+                                <tr class="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wider text-slate-400 font-semibold">
+                                    <th class="px-6 py-3.5">Recipient</th>
+                                    <th class="px-6 py-3.5">Product</th>
+                                    <th class="px-6 py-3.5">Issued Date</th>
+                                    <th class="px-6 py-3.5 text-center">Given</th>
+                                    <th class="px-6 py-3.5 text-center">Returned</th>
+                                    <th class="px-6 py-3.5 text-center">In Use</th>
+                                    <th class="px-6 py-3.5 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transactions-body" class="divide-y divide-slate-100 text-sm"></tbody>
+                        </table>
+                        <div id="no-transactions" class="p-12 text-center text-slate-400 hidden flex-col items-center">
+                            <i class="ph ph-arrows-left-right text-4xl mb-2 text-slate-300"></i>
+                            <p class="font-medium text-slate-600">No products currently issued out.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 11. Archive Tab -->
+            <div id="tab-archive" class="tab-content hidden space-y-6">
+                <div class="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex items-start space-x-3">
+                    <i class="ph ph-archive-box text-amber-600 text-2xl flex-shrink-0 mt-0.5"></i>
+                    <div>
+                        <h4 class="font-bold text-amber-900 text-sm">Archived & Closed Products</h4>
+                        <p class="text-xs text-amber-800/80 mt-0.5">Archived items have stock set to 0, but keep historical logs intact.</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" id="archive-grid"></div>
+                <div id="no-archive" class="p-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200/80 hidden flex-col items-center">
+                    <i class="ph ph-archive-box text-4xl mb-2 text-slate-300"></i>
+                    <p class="font-medium text-slate-600">No products in the archive.</p>
+                </div>
+            </div>
+
+            <!-- 12. Reports Tab -->
+            <div id="tab-reports" class="tab-content hidden space-y-6">
+                <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col lg:flex-row justify-between items-center gap-4">
+                    <div>
+                        <h3 class="font-bold text-slate-800 text-lg">Transaction History Reports</h3>
+                        <p class="text-xs text-slate-500">Filter and export PDF or Excel reports</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                        <select id="report-filter" onchange="renderReports()" class="px-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-700 text-sm font-semibold rounded-xl">
+                            <option value="all">All Time Records</option>
+                            <option value="hourly">Last 24 Hours</option>
+                            <option value="daily">Today's Activity</option>
+                            <option value="monthly">This Month</option>
+                        </select>
+                        <button onclick="exportExcel()" class="bg-[#107c41] hover:bg-[#0c6132] text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center">
+                            <i class="ph ph-file-xls mr-2 text-lg"></i> Export Excel
+                        </button>
+                        <button onclick="exportPDF()" class="bg-rose-600 hover:bg-rose-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center">
+                            <i class="ph ph-file-pdf mr-2 text-lg"></i> Export PDF
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table id="export-table" class="w-full text-left border-collapse min-w-[900px]">
+                            <thead>
+                                <tr class="border-b border-slate-100 bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 font-bold">
+                                    <th class="px-5 py-4">Date & Time</th>
+                                    <th class="px-5 py-4">Recipient Name</th>
+                                    <th class="px-5 py-4">Product / Item</th>
+                                    <th class="px-5 py-4 text-center text-blue-600">Issued</th>
+                                    <th class="px-5 py-4 text-center text-emerald-600">Ret (Good)</th>
+                                    <th class="px-5 py-4 text-center text-rose-600">Defected</th>
+                                    <th class="px-5 py-4 text-center text-amber-600">In Use</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reports-body" class="divide-y divide-slate-100 text-sm"></tbody>
+                        </table>
+                    </div>
+                    <div id="no-reports" class="p-12 text-center text-slate-400 hidden flex-col items-center bg-white">
+                        <i class="ph ph-files text-4xl mb-2 text-slate-300"></i>
+                        <p class="font-medium text-slate-600">No records found for this timeframe.</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Modal Backdrop -->
+    <div id="modal-overlay" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 hidden transition-opacity" onclick="closeAllModals()"></div>
+
+    <!-- Modals -->
+    <!-- Control Panel Modal -->
+    <div id="control-panel-modal" class="modal modal-hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-3xl shadow-2xl z-50 w-[95%] max-w-lg overflow-hidden border border-slate-100">
+        <div class="flex justify-between items-center px-6 py-5 bg-slate-900 text-white">
+            <h3 class="font-bold text-white text-lg">Control Panel & Settings</h3>
+            <button onclick="closeAllModals()" class="text-slate-400 hover:text-white"><i class="ph ph-x text-xl"></i></button>
+        </div>
+        <form id="form-control-panel" class="p-6 space-y-4" onsubmit="handleSaveLoginSettings(event)">
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Username</label>
+                <input type="text" id="cp-username" required class="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Current Password</label>
+                <input type="password" id="cp-current-pass" required class="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">New Password</label>
+                <input type="password" id="cp-new-pass" class="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm">
+            </div>
+            <div id="cp-error" class="hidden text-rose-500 text-xs font-semibold"></div>
+            <div class="pt-4 flex justify-end space-x-2 border-t">
+                <button type="button" onclick="closeAllModals()" class="px-4 py-2 text-slate-600 text-sm">Cancel</button>
+                <button type="submit" class="px-5 py-2 bg-amber-500 text-slate-950 font-bold rounded-xl text-sm">Save</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Add Person Modal -->
+    <div id="add-person-modal" class="modal modal-hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-3xl shadow-2xl z-50 w-[95%] max-w-md overflow-hidden border border-slate-100">
+        <div class="flex justify-between items-center px-6 py-5 border-b bg-slate-50">
+            <h3 class="font-bold text-slate-900 text-lg">Register Person</h3>
+            <button onclick="closeAllModals()"><i class="ph ph-x text-xl text-slate-400"></i></button>
+        </div>
+        <form id="form-add-person" class="p-6 space-y-4" onsubmit="handleAddPerson(event)">
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Full Name</label>
+                <input type="text" id="person-name" required placeholder="e.g. Ali Raza" class="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Department / Role</label>
+                <input type="text" id="person-dept" required placeholder="e.g. IT Support" class="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Contact Email / Phone</label>
+                <input type="text" id="person-contact" placeholder="ali@company.com" class="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm">
+            </div>
+            <div class="pt-4 flex justify-end space-x-2 border-t">
+                <button type="button" onclick="closeAllModals()" class="px-4 py-2 text-slate-600 text-sm">Cancel</button>
+                <button type="submit" class="px-5 py-2 bg-amber-500 text-slate-950 font-bold rounded-xl text-sm">Save Person</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Add Category Modal -->
+    <div id="add-category-modal" class="modal modal-hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-3xl shadow-2xl z-50 w-[95%] max-w-md overflow-hidden border border-slate-100">
+        <div class="flex justify-between items-center px-6 py-5 border-b bg-slate-50">
+            <h3 class="font-bold text-slate-900 text-lg">Create Category</h3>
+            <button onclick="closeAllModals()"><i class="ph ph-x text-xl text-slate-400"></i></button>
+        </div>
+        <form id="form-add-category" class="p-6 space-y-4" onsubmit="handleAddCategory(event)">
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Category Name</label>
+                <input type="text" id="category-name" required placeholder="e.g. Laptops, Furniture" class="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Description</label>
+                <input type="text" id="category-desc" placeholder="Category notes" class="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm">
+            </div>
+            <div class="pt-4 flex justify-end space-x-2 border-t">
+                <button type="button" onclick="closeAllModals()" class="px-4 py-2 text-slate-600 text-sm">Cancel</button>
+                <button type="submit" class="px-5 py-2 bg-blue-600 text-white font-bold rounded-xl text-sm">Create Category</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Add Product Modal -->
+    <div id="add-product-modal" class="modal modal-hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-3xl shadow-2xl z-50 w-[95%] max-w-md overflow-hidden border border-slate-100">
+        <div class="flex justify-between items-center px-6 py-5 border-b bg-slate-50">
+            <h3 class="font-bold text-slate-900 text-lg">Add New Product</h3>
+            <button onclick="closeAllModals()"><i class="ph ph-x text-xl text-slate-400"></i></button>
+        </div>
+        <form id="form-add-product" class="p-6 space-y-4" onsubmit="handleAddProduct(event)">
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Product Name</label>
+                <input type="text" id="add-name" required placeholder="e.g. Dell XPS 15 Laptop" class="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Category / Subsection</label>
+                <select id="add-category-select" class="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm"></select>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Unit Price (PKR)</label>
+                    <input type="number" id="add-value" required min="0" placeholder="150000" class="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Initial Quantity</label>
+                    <input type="number" id="add-qty" required min="1" placeholder="10" class="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Inventory Type</label>
+                <select id="add-inv-type" class="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm">
+                    <option value="new">New Inventory</option>
+                    <option value="old">Old Inventory</option>
+                </select>
+            </div>
+            <div class="pt-4 flex justify-end space-x-2 border-t">
+                <button type="button" onclick="closeAllModals()" class="px-4 py-2 text-slate-600 text-sm">Cancel</button>
+                <button type="submit" class="px-5 py-2 bg-amber-500 text-slate-950 font-bold rounded-xl text-sm">Save Product</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Give Product Modal -->
+    <div id="give-product-modal" class="modal modal-hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-3xl shadow-2xl z-50 w-[95%] max-w-md overflow-hidden border border-slate-100">
+        <div class="flex justify-between items-center px-6 py-5 border-b bg-slate-50">
+            <h3 class="font-bold text-slate-900 text-lg">Issue Product</h3>
+            <button onclick="closeAllModals()"><i class="ph ph-x text-xl text-slate-400"></i></button>
+        </div>
+        <form id="form-give-product" class="p-6 space-y-4" onsubmit="handleGiveProduct(event)">
+            <input type="hidden" id="give-product-id">
+            <div class="p-3 bg-blue-50 border rounded-xl flex justify-between">
+                <div>
+                    <p class="text-xs text-blue-600 font-semibold">Selected Item</p>
+                    <p class="font-bold text-blue-950 text-sm" id="give-product-name"></p>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs text-blue-600 font-semibold">Available QTY</p>
+                    <p id="give-product-stock" class="font-bold text-blue-900 text-lg">0</p>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Select Person</label>
+                <select id="give-person-select" required class="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm"></select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Quantity to Issue</label>
+                <input type="number" id="give-qty" required min="1" placeholder="1" class="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm">
+            </div>
+            <div class="pt-4 flex justify-end space-x-2 border-t">
+                <button type="button" onclick="closeAllModals()" class="px-4 py-2 text-slate-600 text-sm">Cancel</button>
+                <button type="submit" class="px-5 py-2 bg-blue-600 text-white font-bold rounded-xl text-sm">Confirm Issue</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Return Product Modal -->
+    <div id="return-product-modal" class="modal modal-hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-3xl shadow-2xl z-50 w-[95%] max-w-md overflow-hidden border border-slate-100">
+        <div class="flex justify-between items-center px-6 py-5 border-b bg-slate-50">
+            <h3 class="font-bold text-slate-900 text-lg">Process Return</h3>
+            <button onclick="closeAllModals()"><i class="ph ph-x text-xl text-slate-400"></i></button>
+        </div>
+        <form id="form-return-product" class="p-6 space-y-4" onsubmit="handleReturnProduct(event)">
+            <input type="hidden" id="return-tx-id">
+            <div class="p-3 bg-slate-50 border rounded-xl text-xs space-y-1">
+                <div class="flex justify-between"><span class="text-slate-500">Recipient:</span> <span id="return-person-name" class="font-bold"></span></div>
+                <div class="flex justify-between"><span class="text-slate-500">Product:</span> <span id="return-product-name" class="font-bold"></span></div>
+                <div class="flex justify-between"><span class="text-slate-500">In Use Qty:</span> <span id="return-max-qty" class="font-bold text-emerald-600"></span></div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Quantity Returned</label>
+                <input type="number" id="return-qty" required min="1" class="w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-sm">
+            </div>
+            <div class="p-3 border border-rose-200 bg-rose-50/60 rounded-xl flex items-center space-x-3">
+                <input type="checkbox" id="return-is-defect" class="h-4 w-4 text-rose-600 rounded">
+                <label for="return-is-defect" class="text-xs font-bold text-rose-900">Mark Returned Unit(s) as Defected</label>
+            </div>
+            <div class="pt-4 flex justify-end space-x-2 border-t">
+                <button type="button" onclick="closeAllModals()" class="px-4 py-2 text-slate-600 text-sm">Cancel</button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 text-white font-bold rounded-xl text-sm">Confirm Return</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Soft Delete Confirm Modal -->
+    <div id="delete-modal" class="modal modal-hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-3xl shadow-2xl z-50 w-[95%] max-w-md p-6 border border-slate-100 text-center">
+        <div class="w-14 h-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">
+            <i class="ph ph-trash"></i>
+        </div>
+        <h3 class="font-bold text-slate-900 text-lg">Move Item to Recycle Bin?</h3>
+        <p class="text-xs text-slate-500 mt-1">Item will be soft-deleted and can be restored from Recycle Bin.</p>
+        <input type="hidden" id="delete-target-id">
+        <input type="hidden" id="delete-target-type">
+
+        <div class="mt-6 flex justify-center space-x-3">
+            <button onclick="closeAllModals()" class="px-4 py-2.5 text-slate-600 bg-slate-100 rounded-xl text-sm font-semibold">Cancel</button>
+            <button onclick="confirmSoftDelete()" class="px-5 py-2.5 text-white bg-rose-600 rounded-xl text-sm font-bold shadow-md">Move to Recycle Bin</button>
+        </div>
+    </div>
+
+    <!-- Permanent Delete Confirm Modal -->
+    <div id="perm-delete-modal" class="modal modal-hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-3xl shadow-2xl z-50 w-[95%] max-w-md p-6 border border-slate-100 text-center">
+        <div class="w-14 h-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">
+            <i class="ph ph-warning-octagon"></i>
+        </div>
+        <h3 class="font-bold text-slate-900 text-lg">Delete Permanently?</h3>
+        <p class="text-xs text-slate-500 mt-1">This action cannot be undone!</p>
+        <input type="hidden" id="perm-delete-id">
+        <input type="hidden" id="perm-delete-type">
+
+        <div class="mt-6 flex justify-center space-x-3">
+            <button onclick="closeAllModals()" class="px-4 py-2.5 text-slate-600 bg-slate-100 rounded-xl text-sm font-semibold">Cancel</button>
+            <button onclick="executePermanentDelete()" class="px-5 py-2.5 text-white bg-rose-600 rounded-xl text-sm font-bold shadow-md">Permanently Delete</button>
+        </div>
+    </div>
+
+    <!-- JavaScript Application Core Logic -->
+    <script>
+        // System Data State Storage
+        let state = {
+            auth: { username: 'Sameer', password: 'samee776', loggedIn: false },
+            products: [],
+            categories: [],
+            persons: [],
+            kits: [],
+            transactions: [],
+            defects: [],
+            logs: []
+        };
+
+        // Initialize state on load
+        function initApp() {
+            const stored = localStorage.getItem('glee_gather_data');
+            if (stored) {
+                try {
+                    state = JSON.parse(stored);
+                } catch(e) {
+                    console.error("State parse error", e);
+                }
+            } else {
+                // Default Initial Seed Data
+                state.categories = [
+                    { id: 'cat_1', name: 'Laptops & Computers', desc: 'Workstations and notebooks', isDeleted: false },
+                    { id: 'cat_2', name: 'Office Furniture', desc: 'Chairs, desks and tables', isDeleted: false },
+                    { id: 'cat_3', name: 'Accessories', desc: 'Monitors, mice, keyboards', isDeleted: false }
+                ];
+                state.products = [
+                    { id: 'prod_1', name: 'Dell XPS 15 Laptop', categoryId: 'cat_1', value: 250000, currency: 'PKR', qty: 8, type: 'new', isDeleted: false, isArchived: false },
+                    { id: 'prod_2', name: 'Ergonomic Mesh Chair', categoryId: 'cat_2', value: 35000, currency: 'PKR', qty: 15, type: 'old', isDeleted: false, isArchived: false }
+                ];
+                state.persons = [
+                    { id: 'per_1', name: 'Ali Raza', dept: 'Software Engineering', contact: 'ali@company.com', isDeleted: false },
+                    { id: 'per_2', name: 'Sara Khan', dept: 'Product Design', contact: 'sara@company.com', isDeleted: false }
+                ];
+                saveState();
+            }
+
+            // Hide Loader
+            setTimeout(() => {
+                const loader = document.getElementById('loading-screen');
+                if (loader) loader.classList.add('loader-hidden');
+            }, 600);
+
+            // Auth Check
+            if (!state.auth.loggedIn) {
+                document.getElementById('login-overlay').classList.remove('hidden');
+            } else {
+                updateUIHeader();
+                renderDashboard();
+            }
+        }
+
+        function saveState() {
+            localStorage.setItem('glee_gather_data', JSON.stringify(state));
+        }
+
+        function logActivity(action, subject, details) {
+            const newLog = {
+                id: 'log_' + Date.now(),
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                action,
+                subject,
+                details
+            };
+            state.logs.unshift(newLog);
+            if (state.logs.length > 50) state.logs.pop();
+            saveState();
+        }
+
+        // Login / Auth Handlers
+        function handleLogin(e) {
+            e.preventDefault();
+            const u = document.getElementById('login-username').value;
+            const p = document.getElementById('login-password').value;
+            if (u === state.auth.username && p === state.auth.password) {
+                state.auth.loggedIn = true;
+                saveState();
+                document.getElementById('login-overlay').classList.add('hidden');
+                updateUIHeader();
+                renderDashboard();
+                showToast('Welcome back, ' + state.auth.username, 'success');
+            } else {
+                document.getElementById('login-error').classList.remove('hidden');
+            }
+        }
+
+        function handleLogout() {
+            state.auth.loggedIn = false;
+            saveState();
+            location.reload();
+        }
+
+        function updateUIHeader() {
+            document.getElementById('header-user-name').innerText = state.auth.username;
+            document.getElementById('header-user-avatar').innerText = state.auth.username.charAt(0).toUpperCase();
+        }
+
+        function handleSaveLoginSettings(e) {
+            e.preventDefault();
+            const currP = document.getElementById('cp-current-pass').value;
+            const newU = document.getElementById('cp-username').value;
+            const newP = document.getElementById('cp-new-pass').value;
+
+            if (currP !== state.auth.password) {
+                document.getElementById('cp-error').innerText = "Current password incorrect!";
+                document.getElementById('cp-error').classList.remove('hidden');
+                return;
+            }
+
+            if (newU) state.auth.username = newU;
+            if (newP) state.auth.password = newP;
+
+            saveState();
+            closeAllModals();
+            updateUIHeader();
+            showToast("Settings updated successfully!", "success");
+        }
+
+        // Navigation Tab Switcher
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('nav-active', 'bg-amber-500', 'text-slate-950', 'font-bold'));
+
+            const targetTab = document.getElementById('tab-' + tabId);
+            const targetNav = document.getElementById('nav-' + tabId);
+
+            if (targetTab) targetTab.classList.remove('hidden');
+            if (targetNav) targetNav.classList.add('nav-active', 'bg-amber-500', 'text-slate-950', 'font-bold');
+
+            // Render Tab Specific Data
+            if (tabId === 'dashboard') renderDashboard();
+            else if (tabId === 'categories') renderCategories();
+            else if (tabId === 'new-inventory') renderInventory('new');
+            else if (tabId === 'old-inventory') renderInventory('old');
+            else if (tabId === 'remove-inventory') renderRemoveInventory();
+            else if (tabId === 'recycle-bin') renderRecycleBin();
+            else if (tabId === 'kits') renderKits();
+            else if (tabId === 'persons') renderPersons();
+            else if (tabId === 'defects') renderDefects();
+            else if (tabId === 'transactions') renderTransactions();
+            else if (tabId === 'archive') renderArchive();
+            else if (tabId === 'reports') renderReports();
+        }
+
+        // Dashboard Rendering
+        function renderDashboard() {
+            const activeProds = state.products.filter(p => !p.isDeleted && !p.isArchived);
+            const totalVal = activeProds.reduce((sum, p) => sum + (p.value * p.qty), 0);
+            
+            let totalGiven = 0;
+            state.transactions.forEach(t => { totalGiven += (t.givenQty - t.returnedQty - t.defectedQty); });
+
+            const defectedCount = state.defects.reduce((sum, d) => sum + d.qty, 0);
+
+            document.getElementById('stat-total-products').innerText = activeProds.length;
+            document.getElementById('stat-total-value').innerText = 'PKR ' + totalVal.toLocaleString();
+            document.getElementById('stat-given-out').innerText = totalGiven;
+            document.getElementById('stat-total-persons').innerText = state.persons.filter(p => !p.isDeleted).length;
+            document.getElementById('stat-defected').innerText = defectedCount;
+
+            const logsBody = document.getElementById('activity-logs-body');
+            logsBody.innerHTML = '';
+            if (state.logs.length === 0) {
+                document.getElementById('no-logs').classList.remove('hidden');
+            } else {
+                document.getElementById('no-logs').classList.add('hidden');
+                state.logs.forEach(l => {
+                    logsBody.innerHTML += `
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="px-6 py-3 font-mono text-xs text-slate-500">${l.time}</td>
+                            <td class="px-6 py-3"><span class="px-2 py-1 rounded bg-amber-100 text-amber-800 text-xs font-bold">${l.action}</span></td>
+                            <td class="px-6 py-3 font-semibold text-slate-800">${l.subject}</td>
+                            <td class="px-6 py-3 text-slate-600 text-xs">${l.details}</td>
+                        </tr>
+                    `;
+                });
+            }
+        }
+
+        // Modal Controls
+        function openModal(modalId) {
+            document.getElementById('modal-overlay').classList.remove('hidden');
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.remove('modal-hidden');
+                modal.classList.add('modal-active');
+            }
+
+            // Populate category selects dynamically
+            if (modalId === 'add-product-modal') {
+                const sel = document.getElementById('add-category-select');
+                sel.innerHTML = '';
+                state.categories.filter(c => !c.isDeleted).forEach(c => {
+                    sel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+                });
+            }
+        }
+
+        function closeAllModals() {
+            document.getElementById('modal-overlay').classList.add('hidden');
+            document.querySelectorAll('.modal').forEach(m => {
+                m.classList.remove('modal-active');
+                m.classList.add('modal-hidden');
+            });
+        }
+
+        // Add Category
+        function handleAddCategory(e) {
+            e.preventDefault();
+            const name = document.getElementById('category-name').value;
+            const desc = document.getElementById('category-desc').value;
+
+            const newCat = { id: 'cat_' + Date.now(), name, desc, isDeleted: false };
+            state.categories.push(newCat);
+            logActivity('Created Category', name, desc || 'New Category Created');
+            saveState();
+            closeAllModals();
+            renderCategories();
+            showToast('Category created successfully!', 'success');
+        }
+
+        // Render Categories
+        function renderCategories() {
+            const container = document.getElementById('categories-container');
+            container.innerHTML = '';
+            const activeCats = state.categories.filter(c => !c.isDeleted);
+
+            activeCats.forEach(c => {
+                const count = state.products.filter(p => p.categoryId === c.id && !p.isDeleted).length;
+                container.innerHTML += `
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:border-amber-400 transition-all">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold text-lg">
+                                <i class="ph ph-folder"></i>
+                            </div>
+                            <span class="text-xs font-bold bg-slate-100 px-2.5 py-1 rounded-lg text-slate-600">${count} Products</span>
+                        </div>
+                        <h4 class="font-bold text-slate-900 text-base">${c.name}</h4>
+                        <p class="text-xs text-slate-500 mt-1">${c.desc || 'No description'}</p>
+                    </div>
+                `;
+            });
+        }
+
+        // Add Product
+        function handleAddProduct(e) {
+            e.preventDefault();
+            const name = document.getElementById('add-name').value;
+            const catId = document.getElementById('add-category-select').value;
+            const val = parseFloat(document.getElementById('add-value').value);
+            const qty = parseInt(document.getElementById('add-qty').value);
+            const type = document.getElementById('add-inv-type').value;
+
+            const newProd = {
+                id: 'prod_' + Date.now(),
+                name,
+                categoryId: catId,
+                value: val,
+                currency: 'PKR',
+                qty: qty,
+                type: type,
+                isDeleted: false,
+                isArchived: false
+            };
+
+            state.products.push(newProd);
+            logActivity('Added Product', name, `Qty: ${qty}, Price: PKR ${val}`);
+            saveState();
+            closeAllModals();
+            renderInventory(type);
+            showToast('Product added successfully!', 'success');
+        }
+
+        // Render Inventory Tabs (New/Old)
+        function renderInventory(type) {
+            const container = document.getElementById(type + '-subsections-container');
+            const searchVal = (document.getElementById('search-' + type)?.value || '').toLowerCase();
+            container.innerHTML = '';
+
+            const activeProds = state.products.filter(p => p.type === type && !p.isDeleted && !p.isArchived && p.name.toLowerCase().includes(searchVal));
+            document.getElementById(type + '-count-badge').innerText = activeProds.length;
+
+            if (activeProds.length === 0) {
+                document.getElementById('no-' + type + '-products').classList.remove('hidden');
+                return;
+            } else {
+                document.getElementById('no-' + type + '-products').classList.add('hidden');
+            }
+
+            state.categories.filter(c => !c.isDeleted).forEach(c => {
+                const catProds = activeProds.filter(p => p.categoryId === c.id);
+                if (catProds.length > 0) {
+                    let html = `
+                        <div class="space-y-4">
+                            <h3 class="font-bold text-slate-800 text-lg flex items-center">
+                                <i class="ph ph-folders text-amber-500 mr-2"></i> ${c.name}
+                            </h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    `;
+                    catProds.forEach(p => {
+                        html += `
+                            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                                <div>
+                                    <div class="flex justify-between items-start mb-2">
+                                        <h4 class="font-bold text-slate-900">${p.name}</h4>
+                                        <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">${p.qty} in stock</span>
+                                    </div>
+                                    <p class="text-xs text-slate-500 font-semibold mb-3">PKR ${p.value.toLocaleString()}</p>
+                                </div>
+                                <div class="flex gap-2 pt-2 border-t border-slate-100">
+                                    <button onclick="openGiveModal('${p.id}')" class="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center justify-center">
+                                        <i class="ph ph-hand-holding mr-1"></i> Issue Item
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += `</div></div>`;
+                    container.innerHTML += html;
+                }
+            });
+        }
+
+        // Add Person
+        function handleAddPerson(e) {
+            e.preventDefault();
+            const name = document.getElementById('person-name').value;
+            const dept = document.getElementById('person-dept').value;
+            const contact = document.getElementById('person-contact').value;
+
+            state.persons.push({ id: 'per_' + Date.now(), name, dept, contact, isDeleted: false });
+            logActivity('Registered Person', name, dept);
+            saveState();
+            closeAllModals();
+            renderPersons();
+            showToast('Person registered successfully!', 'success');
+        }
+
+        // Render Persons
+        function renderPersons() {
+            const grid = document.getElementById('persons-grid');
+            grid.innerHTML = '';
+            const activePersons = state.persons.filter(p => !p.isDeleted);
+
+            if (activePersons.length === 0) {
+                document.getElementById('no-persons').classList.remove('hidden');
+                return;
+            } else {
+                document.getElementById('no-persons').classList.add('hidden');
+            }
+
+            activePersons.forEach(p => {
+                grid.innerHTML += `
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div class="w-12 h-12 bg-amber-500 text-slate-950 font-bold rounded-2xl flex items-center justify-center text-lg mb-3 shadow-sm">
+                                ${p.name.charAt(0).toUpperCase()}
+                            </div>
+                            <h4 class="font-bold text-slate-900 text-base">${p.name}</h4>
+                            <p class="text-xs text-amber-600 font-semibold mt-0.5">${p.dept}</p>
+                            <p class="text-xs text-slate-400 mt-1">${p.contact || 'No contact info'}</p>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // Issue Product Modal Setup
+        function openGiveModal(prodId) {
+            const p = state.products.find(x => x.id === prodId);
+            if (!p) return;
+            document.getElementById('give-product-id').value = p.id;
+            document.getElementById('give-product-name').innerText = p.name;
+            document.getElementById('give-product-stock').innerText = p.qty;
+
+            const sel = document.getElementById('give-person-select');
+            sel.innerHTML = '';
+            state.persons.filter(x => !x.isDeleted).forEach(x => {
+                sel.innerHTML += `<option value="${x.id}">${x.name} (${x.dept})</option>`;
+            });
+
+            openModal('give-product-modal');
+        }
+
+        // Handle Issue Product
+        function handleGiveProduct(e) {
+            e.preventDefault();
+            const prodId = document.getElementById('give-product-id').value;
+            const personId = document.getElementById('give-person-select').value;
+            const qty = parseInt(document.getElementById('give-qty').value);
+
+            const p = state.products.find(x => x.id === prodId);
+            const person = state.persons.find(x => x.id === personId);
+
+            if (!p || !person || p.qty < qty) {
+                showToast('Insufficient stock available!', 'error');
+                return;
+            }
+
+            p.qty -= qty;
+            const newTx = {
+                id: 'tx_' + Date.now(),
+                personId,
+                productId: prodId,
+                givenQty: qty,
+                returnedQty: 0,
+                defectedQty: 0,
+                date: new Date().toLocaleDateString()
+            };
+
+            state.transactions.push(newTx);
+            logActivity('Issued Product', `${p.name} to ${person.name}`, `Qty: ${qty}`);
+            saveState();
+            closeAllModals();
+            showToast(`Issued ${qty} units to ${person.name}`, 'success');
+        }
+
+        // Render Transactions
+        function renderTransactions() {
+            const body = document.getElementById('transactions-body');
+            body.innerHTML = '';
+            if (state.transactions.length === 0) {
+                document.getElementById('no-transactions').classList.remove('hidden');
+                return;
+            }
+            document.getElementById('no-transactions').classList.add('hidden');
+
+            state.transactions.forEach(t => {
+                const person = state.persons.find(x => x.id === t.personId);
+                const prod = state.products.find(x => x.id === t.productId);
+                const inUse = t.givenQty - t.returnedQty - t.defectedQty;
+
+                body.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-6 py-3.5 font-bold text-slate-800">${person ? person.name : 'Unknown'}</td>
+                        <td class="px-6 py-3.5 text-slate-700">${prod ? prod.name : 'Unknown'}</td>
+                        <td class="px-6 py-3.5 text-slate-500 text-xs">${t.date}</td>
+                        <td class="px-6 py-3.5 text-center font-bold text-blue-600">${t.givenQty}</td>
+                        <td class="px-6 py-3.5 text-center font-bold text-emerald-600">${t.returnedQty}</td>
+                        <td class="px-6 py-3.5 text-center font-bold text-amber-600">${inUse}</td>
+                        <td class="px-6 py-3.5 text-right">
+                            ${inUse > 0 ? `<button onclick="openReturnModal('${t.id}')" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg">Return</button>` : `<span class="text-xs text-slate-400 font-medium">Completed</span>`}
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        // Open Return Modal
+        function openReturnModal(txId) {
+            const t = state.transactions.find(x => x.id === txId);
+            if (!t) return;
+            const person = state.persons.find(x => x.id === t.personId);
+            const prod = state.products.find(x => x.id === t.productId);
+            const inUse = t.givenQty - t.returnedQty - t.defectedQty;
+
+            document.getElementById('return-tx-id').value = t.id;
+            document.getElementById('return-person-name').innerText = person ? person.name : '';
+            document.getElementById('return-product-name').innerText = prod ? prod.name : '';
+            document.getElementById('return-max-qty').innerText = inUse + ' units';
+            document.getElementById('return-qty').max = inUse;
+
+            openModal('return-product-modal');
+        }
+
+        // Handle Return Product
+        function handleReturnProduct(e) {
+            e.preventDefault();
+            const txId = document.getElementById('return-tx-id').value;
+            const qty = parseInt(document.getElementById('return-qty').value);
+            const isDefect = document.getElementById('return-is-defect').checked;
+
+            const t = state.transactions.find(x => x.id === txId);
+            if (!t) return;
+            const prod = state.products.find(x => x.id === t.productId);
+
+            if (isDefect) {
+                t.defectedQty += qty;
+                state.defects.push({ id: 'def_' + Date.now(), productId: t.productId, qty, status: 'pending', date: new Date().toLocaleDateString() });
+                logActivity('Returned Defected', prod ? prod.name : '', `Qty: ${qty}`);
+            } else {
+                t.returnedQty += qty;
+                if (prod) prod.qty += qty;
+                logActivity('Returned Item', prod ? prod.name : '', `Qty: ${qty}`);
+            }
+
+            saveState();
+            closeAllModals();
+            renderTransactions();
+            showToast('Return processed successfully!', 'success');
+        }
+
+        // --- REMOVE INVENTORY & RECYCLE BIN MANAGEMENT ---
+        function renderRemoveInventory() {
+            const pList = document.getElementById('remove-products-list');
+            const perList = document.getElementById('remove-persons-list');
+            const cList = document.getElementById('remove-categories-list');
+
+            pList.innerHTML = ''; perList.innerHTML = ''; cList.innerHTML = '';
+
+            const activeProds = state.products.filter(p => !p.isDeleted);
+            const activePersons = state.persons.filter(p => !p.isDeleted);
+            const activeCats = state.categories.filter(c => !c.isDeleted);
+
+            document.getElementById('remove-active-product-count').innerText = activeProds.length;
+            document.getElementById('remove-active-person-count').innerText = activePersons.length;
+            document.getElementById('remove-active-category-count').innerText = activeCats.length;
+
+            activeProds.forEach(p => {
+                pList.innerHTML += `
+                    <div class="p-3 bg-slate-50 border rounded-xl flex justify-between items-center">
+                        <span class="font-bold text-slate-800 text-sm">${p.name}</span>
+                        <button onclick="triggerSoftDelete('product', '${p.id}')" class="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs rounded-lg">Remove</button>
+                    </div>
+                `;
+            });
+
+            activePersons.forEach(p => {
+                perList.innerHTML += `
+                    <div class="p-3 bg-slate-50 border rounded-xl flex justify-between items-center">
+                        <span class="font-bold text-slate-800 text-sm">${p.name}</span>
+                        <button onclick="triggerSoftDelete('person', '${p.id}')" class="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs rounded-lg">Remove</button>
+                    </div>
+                `;
+            });
+
+            activeCats.forEach(c => {
+                cList.innerHTML += `
+                    <div class="p-3 bg-slate-50 border rounded-xl flex justify-between items-center">
+                        <span class="font-bold text-slate-800 text-sm">${c.name}</span>
+                        <button onclick="triggerSoftDelete('category', '${c.id}')" class="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs rounded-lg">Remove</button>
+                    </div>
+                `;
+            });
+        }
+
+        function triggerSoftDelete(type, id) {
+            document.getElementById('delete-target-type').value = type;
+            document.getElementById('delete-target-id').value = id;
+            openModal('delete-modal');
+        }
+
+        function confirmSoftDelete() {
+            const type = document.getElementById('delete-target-type').value;
+            const id = document.getElementById('delete-target-id').value;
+
+            if (type === 'product') {
+                const item = state.products.find(x => x.id === id);
+                if (item) { item.isDeleted = true; logActivity('Moved to Recycle Bin', item.name, 'Product'); }
+            } else if (type === 'person') {
+                const item = state.persons.find(x => x.id === id);
+                if (item) { item.isDeleted = true; logActivity('Moved to Recycle Bin', item.name, 'Person'); }
+            } else if (type === 'category') {
+                const item = state.categories.find(x => x.id === id);
+                if (item) { item.isDeleted = true; logActivity('Moved to Recycle Bin', item.name, 'Category'); }
+            }
+
+            saveState();
+            closeAllModals();
+            renderRemoveInventory();
+            showToast('Moved to Recycle Bin', 'success');
+        }
+
+        function renderRecycleBin() {
+            const pList = document.getElementById('recycle-products-list');
+            const perList = document.getElementById('recycle-persons-list');
+            const cList = document.getElementById('recycle-categories-list');
+
+            pList.innerHTML = ''; perList.innerHTML = ''; cList.innerHTML = '';
+
+            const deletedProds = state.products.filter(p => p.isDeleted);
+            const deletedPersons = state.persons.filter(p => p.isDeleted);
+            const deletedCats = state.categories.filter(c => c.isDeleted);
+
+            document.getElementById('recycle-product-count').innerText = deletedProds.length;
+            document.getElementById('recycle-person-count').innerText = deletedPersons.length;
+            document.getElementById('recycle-category-count').innerText = deletedCats.length;
+
+            deletedProds.forEach(p => {
+                pList.innerHTML += `
+                    <div class="p-3 bg-slate-50 border rounded-xl flex justify-between items-center">
+                        <span class="font-bold text-slate-800 text-sm">${p.name}</span>
+                        <div class="flex space-x-1">
+                            <button onclick="restoreItem('product', '${p.id}')" title="Restore" class="px-2.5 py-1 bg-emerald-100 text-emerald-700 font-bold text-xs rounded-lg"><i class="ph ph-arrow-u-up-left"></i> Restore</button>
+                            <button onclick="triggerPermanentDelete('product', '${p.id}')" title="Delete Permanently" class="px-2.5 py-1 bg-rose-100 text-rose-700 font-bold text-xs rounded-lg"><i class="ph ph-trash"></i></button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            deletedPersons.forEach(p => {
+                perList.innerHTML += `
+                    <div class="p-3 bg-slate-50 border rounded-xl flex justify-between items-center">
+                        <span class="font-bold text-slate-800 text-sm">${p.name}</span>
+                        <div class="flex space-x-1">
+                            <button onclick="restoreItem('person', '${p.id}')" title="Restore" class="px-2.5 py-1 bg-emerald-100 text-emerald-700 font-bold text-xs rounded-lg"><i class="ph ph-arrow-u-up-left"></i> Restore</button>
+                            <button onclick="triggerPermanentDelete('person', '${p.id}')" title="Delete Permanently" class="px-2.5 py-1 bg-rose-100 text-rose-700 font-bold text-xs rounded-lg"><i class="ph ph-trash"></i></button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            deletedCats.forEach(c => {
+                cList.innerHTML += `
+                    <div class="p-3 bg-slate-50 border rounded-xl flex justify-between items-center">
+                        <span class="font-bold text-slate-800 text-sm">${c.name}</span>
+                        <div class="flex space-x-1">
+                            <button onclick="restoreItem('category', '${c.id}')" title="Restore" class="px-2.5 py-1 bg-emerald-100 text-emerald-700 font-bold text-xs rounded-lg"><i class="ph ph-arrow-u-up-left"></i> Restore</button>
+                            <button onclick="triggerPermanentDelete('category', '${c.id}')" title="Delete Permanently" class="px-2.5 py-1 bg-rose-100 text-rose-700 font-bold text-xs rounded-lg"><i class="ph ph-trash"></i></button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function restoreItem(type, id) {
+            if (type === 'product') {
+                const item = state.products.find(x => x.id === id);
+                if (item) { item.isDeleted = false; logActivity('Restored Item', item.name, 'Product'); }
+            } else if (type === 'person') {
+                const item = state.persons.find(x => x.id === id);
+                if (item) { item.isDeleted = false; logActivity('Restored Item', item.name, 'Person'); }
+            } else if (type === 'category') {
+                const item = state.categories.find(x => x.id === id);
+                if (item) { item.isDeleted = false; logActivity('Restored Item', item.name, 'Category'); }
+            }
+
+            saveState();
+            renderRecycleBin();
+            showToast('Item restored successfully!', 'success');
+        }
+
+        function triggerPermanentDelete(type, id) {
+            document.getElementById('perm-delete-type').value = type;
+            document.getElementById('perm-delete-id').value = id;
+            openModal('perm-delete-modal');
+        }
+
+        function executePermanentDelete() {
+            const type = document.getElementById('perm-delete-type').value;
+            const id = document.getElementById('perm-delete-id').value;
+
+            if (type === 'product') {
+                state.products = state.products.filter(x => x.id !== id);
+            } else if (type === 'person') {
+                state.persons = state.persons.filter(x => x.id !== id);
+            } else if (type === 'category') {
+                state.categories = state.categories.filter(x => x.id !== id);
+            }
+
+            saveState();
+            closeAllModals();
+            renderRecycleBin();
+            showToast('Item permanently deleted', 'success');
+        }
+
+        // Placeholder renderers
+        function renderKits() {}
+        function renderDefects() {}
+        function renderArchive() {}
+        function renderReports() {}
+
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            sidebar.classList.toggle('hidden');
+            backdrop.classList.toggle('hidden');
+        }
+
+        function showToast(msg, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast-enter p-4 rounded-xl text-xs font-bold text-white shadow-xl ${type === 'success' ? 'bg-emerald-600' : 'bg-rose-600'}`;
+            toast.innerText = msg;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function confirmLogResetModal() { openModal('log-reset-modal'); }
+        function executeLogReset() {
+            state.logs = [];
+            saveState();
+            closeAllModals();
+            renderDashboard();
+            showToast('Activity Log Cleared', 'success');
+        }
+
+        // Initialize App on DOM Load
+        window.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
