@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glee Gather - Inventory & Kitting Management Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#fffbe1', 100: '#fff3b8', 200: '#ffe570', 300: '#ffd22d',
+                            400: '#fca311', 500: '#f59e0b', 600: '#d97706', 700: '#b45309',
+                            800: '#92400e', 900: '#78350f', dark: '#12131a', card: '#1a1c24'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Fredoka', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; background-image: radial-gradient(circle at top right, rgba(252, 163, 17, 0.05), transparent 40%); }
+        .font-brand { font-family: 'Fredoka', sans-serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .modal { transition: opacity 0.25s ease, transform 0.25s ease; }
+        .modal-hidden { opacity: 0; pointer-events: none; transform: translate(-50%, -48%) scale(0.96); }
+        .modal-active { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%) scale(1); }
+
+        #loading-screen { transition: opacity 0.6s ease, visibility 0.6s ease; }
+        .loader-hidden { opacity: 0; visibility: hidden; }
+        
+        @keyframes toast-in {
+            from { opacity: 0; transform: translateY(12px) scale(0.96); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .toast-enter { animation: toast-in 0.3s cubic-bezier(0.16, 1, 0.3, 1); forwards; }
+        
+        @keyframes tab-fade-in {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .tab-content:not(.hidden) { animation: tab-fade-in 0.35s ease; }
+
+        .nav-btn { position: relative; }
+        .nav-btn.nav-active::before {
+            content: ''; position: absolute; left: -0.75rem; top: 50%; transform: translateY(-50%);
+            width: 3px; height: 60%; border-radius: 4px; background: #fca311;
+        }
+
+        .lift-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .lift-hover:hover { transform: translateY(-3px); }
+
+        .styled-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .styled-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .styled-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+        .styled-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        button { transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, opacity 0.15s ease; }
+        button:not(:disabled):active { transform: scale(0.97); }
+    </style>
+</head>
+<body class="h-screen flex overflow-hidden text-slate-800">
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center">
+        <h1 class="text-5xl font-bold font-brand tracking-wider text-white mb-3">GLEE<span class="text-amber-400 ml-1">GATHER</span></h1>
+        <p class="text-amber-400 text-sm mt-2 animate-pulse">Connecting to Cloud Database...</p>
+    </div>
+
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="fixed inset-0 z-[95] bg-slate-950 flex items-center justify-center p-4">
+        <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl shadow-amber-500/10">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-amber-500/10 border border-amber-500/30 text-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl">
+                    <i class="ph ph-lock-key"></i>
+                </div>
+                <h2 class="text-2xl font-bold font-brand text-white">Inventory Manager Login</h2>
+                <p class="text-xs text-slate-400 mt-1">Glee Gather Portal Security</p>
+            </div>
+
+            <form id="form-login" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Username</label>
+                    <input type="text" id="login-username" required placeholder="Enter username" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 text-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all" value="Sameer">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Password</label>
+                    <input type="password" id="login-password" required placeholder="Enter password" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 text-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all" value="samee776">
+                </div>
+                <div id="login-error" class="hidden p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold text-center">
+                    Invalid Username or Password!
+                </div>
+                <div class="pt-2">
+                    <button type="submit" class="w-full py-3.5 px-4 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-sm rounded-xl transition-all shadow-lg flex items-center justify-center">
+                        <i class="ph ph-sign-in mr-2 text-lg"></i> Sign In to Portal
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[200] flex flex-col gap-2 items-end pointer-events-none"></div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-64 bg-slate-900 text-white flex flex-col hidden md:flex transition-all duration-300 shadow-xl border-r border-slate-800 z-50 flex-shrink-0 absolute md:relative h-full">
+        <div class="h-20 flex items-center px-5 border-b border-slate-800/80 bg-slate-950/40">
+            <h1 class="text-lg font-bold font-brand tracking-wide text-white">GLEE<span class="text-amber-400 ml-1">GATHER</span></h1>
+        </div>
+        <nav class="flex-1 overflow-y-auto py-5 px-3 space-y-1">
+            <button data-tab="dashboard" class="nav-btn nav-active w-full flex items-center px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-950 bg-amber-500 shadow-md">
+                <i class="ph ph-squares-four text-lg mr-3"></i> Dashboard
+            </button>
+            <button data-tab="categories" class="nav-btn w-full flex items-center px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-all">
+                <i class="ph ph-folders text-lg mr-3 text-slate-400"></i> Categories
+            </button>
+            <button data-tab="inventory" class="nav-btn w-full flex items-center px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-all">
+                <i class="ph ph-package text-lg mr-3 text-slate-400"></i> All Inventory
+            </button>
+            <button data-tab="persons" class="nav-btn w-full flex items-center px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-all">
+                <i class="ph ph-users-three text-lg mr-3 text-slate-400"></i> Personnel
+            </button>
+        </nav>
+        <div class="p-4 border-t border-slate-800/80 text-xs text-slate-400 flex justify-between">
+            <span>Cloud Sync Active</span>
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mt-1"></div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative bg-slate-50">
+        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-10 sticky top-0">
+            <h2 id="page-title" class="text-lg font-bold text-slate-800">Dashboard Overview</h2>
+            <div class="flex items-center space-x-2">
+                <button onclick="openModal('add-product-modal')" class="bg-amber-500 hover:bg-amber-600 text-slate-950 px-3 py-1.5 rounded-lg font-bold text-xs flex items-center transition-all">
+                    <i class="ph ph-plus-circle mr-1.5"></i> Add Product
+                </button>
+                <button onclick="openModal('add-person-modal')" class="bg-slate-200 hover:bg-slate-300 text-slate-800 px-3 py-1.5 rounded-lg font-bold text-xs flex items-center transition-all">
+                    <i class="ph ph-user-plus mr-1.5"></i> Add Person
+                </button>
+                <button id="logout-btn" class="ml-2 text-slate-500 hover:text-rose-500 p-1.5 rounded-lg">
+                    <i class="ph ph-sign-out text-lg"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-auto p-6 styled-scrollbar">
+            <!-- DASHBOARD TAB -->
+            <div id="tab-dashboard" class="tab-content space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-400 uppercase">Total Products</p>
+                            <h3 id="stat-products" class="text-3xl font-bold text-slate-900 mt-1">0</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center text-2xl"><i class="ph ph-package"></i></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-400 uppercase">Total Value</p>
+                            <h3 id="stat-value" class="text-3xl font-bold text-slate-900 mt-1">PKR 0</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center text-2xl"><i class="ph ph-coins"></i></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-400 uppercase">Total Personnel</p>
+                            <h3 id="stat-persons" class="text-3xl font-bold text-slate-900 mt-1">0</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center text-2xl"><i class="ph ph-users"></i></div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                        <h3 class="font-bold text-slate-800 flex items-center"><i class="ph ph-clock-counter-clockwise mr-2 text-amber-500"></i> Activity Log</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50 text-xs text-slate-500 uppercase">
+                                <tr>
+                                    <th class="px-5 py-3 border-b">Time</th>
+                                    <th class="px-5 py-3 border-b">Action</th>
+                                    <th class="px-5 py-3 border-b">Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logs-body" class="divide-y divide-slate-100 text-sm">
+                                <tr><td colspan="3" class="px-5 py-8 text-center text-slate-400">Loading logs...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CATEGORIES TAB -->
+            <div id="tab-categories" class="tab-content hidden space-y-4">
+                <div class="flex justify-between items-center">
+                    <h3 class="font-bold text-lg text-slate-800">Product Categories</h3>
+                    <button onclick="openModal('add-category-modal')" class="bg-slate-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold">Add Category</button>
+                </div>
+                <div id="categories-grid" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Categories will render here -->
+                </div>
+            </div>
+
+            <!-- INVENTORY TAB -->
+            <div id="tab-inventory" class="tab-content hidden space-y-4">
+                 <div class="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
+                    <input type="text" id="search-inventory" placeholder="Search inventory..." class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm w-64 focus:ring-2 focus:ring-amber-500 outline-none">
+                </div>
+                <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50 text-xs text-slate-500 uppercase">
+                            <tr>
+                                <th class="px-4 py-3 border-b">Product Name</th>
+                                <th class="px-4 py-3 border-b">Category</th>
+                                <th class="px-4 py-3 border-b text-center">Qty</th>
+                                <th class="px-4 py-3 border-b text-right">Price (PKR)</th>
+                                <th class="px-4 py-3 border-b text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-body" class="divide-y divide-slate-100 text-sm">
+                            <!-- Products will render here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- PERSONS TAB -->
+            <div id="tab-persons" class="tab-content hidden space-y-4">
+                 <div class="flex justify-between items-center">
+                    <h3 class="font-bold text-lg text-slate-800">Personnel Roster</h3>
+                </div>
+                <div id="persons-grid" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Persons will render here -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- MODALS -->
+    <!-- Add Category Modal -->
+    <div id="add-category-modal" class="modal modal-hidden fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl relative">
+            <button onclick="closeModal('add-category-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><i class="ph ph-x text-lg"></i></button>
+            <h3 class="font-bold text-lg text-slate-800 mb-4">New Category</h3>
+            <form id="form-add-category" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">Category Name</label>
+                    <input type="text" id="cat-name" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-amber-500">
+                </div>
+                <button type="submit" class="w-full bg-amber-500 text-slate-900 font-bold py-2 rounded-lg mt-2 hover:bg-amber-600">Save Category</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Product Modal -->
+    <div id="add-product-modal" class="modal modal-hidden fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+            <button onclick="closeModal('add-product-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><i class="ph ph-x text-lg"></i></button>
+            <h3 class="font-bold text-lg text-slate-800 mb-4">Add New Product</h3>
+            <form id="form-add-product" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">Product Name</label>
+                    <input type="text" id="prod-name" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-amber-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">Category</label>
+                        <select id="prod-category" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-amber-500">
+                            <option value="">Select Category</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">Condition</label>
+                        <select id="prod-condition" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-amber-500">
+                            <option value="New">New</option>
+                            <option value="Old">Old</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">Quantity</label>
+                        <input type="number" id="prod-qty" required min="1" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">Price (PKR)</label>
+                        <input type="number" id="prod-price" required min="0" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-amber-500">
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-amber-500 text-slate-900 font-bold py-2 rounded-lg mt-4 hover:bg-amber-600">Save Product</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Person Modal -->
+    <div id="add-person-modal" class="modal modal-hidden fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl relative">
+            <button onclick="closeModal('add-person-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><i class="ph ph-x text-lg"></i></button>
+            <h3 class="font-bold text-lg text-slate-800 mb-4">Register Personnel</h3>
+            <form id="form-add-person" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">Full Name</label>
+                    <input type="text" id="person-name" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-amber-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">Department / Role</label>
+                    <input type="text" id="person-dept" required class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-amber-500">
+                </div>
+                <button type="submit" class="w-full bg-amber-500 text-slate-900 font-bold py-2 rounded-lg mt-2 hover:bg-amber-600">Register Person</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, addDoc, serverTimestamp, query, orderBy, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'glee-gather-app';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        
+        let app, db, auth, currentUserId;
+        let categoriesData = [];
+        let productsData = [];
+        let personsData = [];
+
+        // UI Helpers
+        window.openModal = (id) => {
+            const el = document.getElementById(id);
+            el.classList.remove('modal-hidden');
+            el.classList.add('modal-active');
+        };
+        window.closeModal = (id) => {
+            const el = document.getElementById(id);
+            el.classList.remove('modal-active');
+            el.classList.add('modal-hidden');
+        };
+        
+        window.showToast = (msg, type='success') => {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const color = type === 'success' ? 'bg-emerald-500' : 'bg-rose-500';
+            toast.className = `${color} text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium toast-enter flex items-center gap-2`;
+            toast.innerHTML = `<i class="ph ph-info"></i> ${msg}`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        };
+
+        // Tab Switching
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.nav-btn').forEach(b => {
+                    b.classList.remove('nav-active', 'bg-amber-500', 'text-slate-950');
+                    b.classList.add('text-slate-300');
+                });
+                const target = e.currentTarget;
+                target.classList.add('nav-active', 'bg-amber-500', 'text-slate-950');
+                target.classList.remove('text-slate-300');
+
+                document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+                document.getElementById(`tab-${target.dataset.tab}`).classList.remove('hidden');
+                
+                document.getElementById('page-title').innerText = target.innerText.trim();
+            });
+        });
+
+        // Initialize Firebase safely
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            
+            // Login handling
+            document.getElementById('form-login').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const u = document.getElementById('login-username').value;
+                const p = document.getElementById('login-password').value;
+                if(u === 'Sameer' && p === 'samee776') {
+                    document.getElementById('login-overlay').classList.add('hidden');
+                    
+                    // Trigger Firebase Auth to allow database writes
+                    if (typeof __initial_auth_token !== 'undefined') {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } else {
+                    document.getElementById('login-error').classList.remove('hidden');
+                }
+            });
+
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    currentUserId = user.uid;
+                    document.getElementById('loading-screen').classList.add('hidden');
+                    startRealtimeListeners();
+                }
+            });
+
+        } catch(err) {
+            console.error("Firebase init error:", err);
+            document.getElementById('loading-screen').innerHTML = `<p class="text-white">Database configuration missing. Running in UI-only mode.</p>`;
+            setTimeout(() => document.getElementById('loading-screen').classList.add('hidden'), 2000);
+        }
+
+        function getCollectionPath(colName) {
+            return collection(db, 'artifacts', appId, 'public', 'data', colName);
+        }
+
+        async function logActivity(action, details) {
+            if(!currentUserId) return;
+            try {
+                await addDoc(getCollectionPath('logs'), {
+                    action, details, time: Date.now()
+                });
+            } catch(e) { console.error(e); }
+        }
+
+        function startRealtimeListeners() {
+            // Listen Categories
+            onSnapshot(getCollectionPath('categories'), (snap) => {
+                categoriesData = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                renderCategories();
+                updateCategoryDropdown();
+            }, (err) => console.error(err));
+
+            // Listen Products
+            onSnapshot(getCollectionPath('products'), (snap) => {
+                productsData = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                renderProducts();
+                updateDashboardStats();
+            }, (err) => console.error(err));
+
+            // Listen Persons
+            onSnapshot(getCollectionPath('persons'), (snap) => {
+                personsData = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                renderPersons();
+                updateDashboardStats();
+            }, (err) => console.error(err));
+
+            // Listen Logs
+            onSnapshot(getCollectionPath('logs'), (snap) => {
+                const logs = snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => b.time - a.time).slice(0, 10);
+                const tbody = document.getElementById('logs-body');
+                if(logs.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="3" class="px-5 py-4 text-center text-slate-400">No activity yet.</td></tr>`;
+                    return;
+                }
+                tbody.innerHTML = logs.map(l => `
+                    <tr>
+                        <td class="px-5 py-3 border-b text-xs text-slate-500">${new Date(l.time).toLocaleTimeString()}</td>
+                        <td class="px-5 py-3 border-b font-semibold text-slate-700">${l.action}</td>
+                        <td class="px-5 py-3 border-b text-slate-600">${l.details}</td>
+                    </tr>
+                `).join('');
+            }, (err) => console.error(err));
+        }
+
+        // Render Functions
+        function renderCategories() {
+            const grid = document.getElementById('categories-grid');
+            grid.innerHTML = categoriesData.map(c => `
+                <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+                    <div class="w-10 h-10 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center mb-3">
+                        <i class="ph ph-folder text-xl"></i>
+                    </div>
+                    <h4 class="font-bold text-slate-800">${c.name}</h4>
+                    <p class="text-xs text-slate-400 mt-1">ID: ${c.id.slice(0,6)}</p>
+                </div>
+            `).join('');
+        }
+
+        function renderProducts() {
+            const tbody = document.getElementById('inventory-body');
+            tbody.innerHTML = productsData.map(p => {
+                const cat = categoriesData.find(c => c.id === p.categoryId)?.name || 'Unknown';
+                return `
+                <tr>
+                    <td class="px-4 py-3 border-b font-medium text-slate-800 flex items-center gap-2">
+                        <div class="w-2 h-2 rounded-full ${p.condition === 'New' ? 'bg-emerald-500' : 'bg-amber-500'}"></div>
+                        ${p.name}
+                    </td>
+                    <td class="px-4 py-3 border-b text-slate-600 text-xs">${cat}</td>
+                    <td class="px-4 py-3 border-b text-center font-bold text-slate-700">${p.qty}</td>
+                    <td class="px-4 py-3 border-b text-right text-slate-600 font-mono">PKR ${p.price.toLocaleString()}</td>
+                    <td class="px-4 py-3 border-b text-center">
+                        <button onclick="window.deleteProduct('${p.id}')" class="text-rose-500 hover:text-rose-700 p-1 bg-rose-50 rounded"><i class="ph ph-trash"></i></button>
+                    </td>
+                </tr>
+            `}).join('');
+        }
+
+        function renderPersons() {
+            const grid = document.getElementById('persons-grid');
+            grid.innerHTML = personsData.map(p => `
+                <div class="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3">
+                    <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold">
+                        ${p.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 text-sm">${p.name}</h4>
+                        <p class="text-xs text-slate-500">${p.dept}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateCategoryDropdown() {
+            const sel = document.getElementById('prod-category');
+            sel.innerHTML = '<option value="">Select Category</option>' + 
+                categoriesData.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+        }
+
+        function updateDashboardStats() {
+            document.getElementById('stat-products').innerText = productsData.reduce((acc, p) => acc + Number(p.qty), 0);
+            const val = productsData.reduce((acc, p) => acc + (Number(p.qty) * Number(p.price)), 0);
+            document.getElementById('stat-value').innerText = `PKR ${val.toLocaleString()}`;
+            document.getElementById('stat-persons').innerText = personsData.length;
+        }
+
+        // Form Submissions
+        document.getElementById('form-add-category').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if(!currentUserId) return;
+            const name = document.getElementById('cat-name').value;
+            try {
+                await addDoc(getCollectionPath('categories'), { name, createdAt: Date.now() });
+                logActivity('Created Category', `Added new category: ${name}`);
+                showToast('Category added successfully!');
+                closeModal('add-category-modal');
+                e.target.reset();
+            } catch(err) { showToast('Error adding category', 'error'); }
+        });
+
+        document.getElementById('form-add-product').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if(!currentUserId) return;
+            const name = document.getElementById('prod-name').value;
+            const categoryId = document.getElementById('prod-category').value;
+            const condition = document.getElementById('prod-condition').value;
+            const qty = Number(document.getElementById('prod-qty').value);
+            const price = Number(document.getElementById('prod-price').value);
+            
+            try {
+                await addDoc(getCollectionPath('products'), { name, categoryId, condition, qty, price, createdAt: Date.now() });
+                logActivity('Added Inventory', `Received ${qty}x ${name} (${condition})`);
+                showToast('Product added successfully!');
+                closeModal('add-product-modal');
+                e.target.reset();
+            } catch(err) { showToast('Error adding product', 'error'); }
+        });
+
+        document.getElementById('form-add-person').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if(!currentUserId) return;
+            const name = document.getElementById('person-name').value;
+            const dept = document.getElementById('person-dept').value;
+            try {
+                await addDoc(getCollectionPath('persons'), { name, dept, createdAt: Date.now() });
+                logActivity('Registered Person', `Added personnel: ${name} (${dept})`);
+                showToast('Person registered successfully!');
+                closeModal('add-person-modal');
+                e.target.reset();
+            } catch(err) { showToast('Error registering person', 'error'); }
+        });
+
+        // Global Actions
+        window.deleteProduct = async (id) => {
+            if(!currentUserId) return;
+            try {
+                const prod = productsData.find(p=>p.id===id);
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'products', id));
+                logActivity('Deleted Product', `Removed ${prod?.name} from inventory`);
+                showToast('Product removed');
+            } catch(e) { console.error(e); }
+        }
+
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            document.getElementById('login-overlay').classList.remove('hidden');
+        });
+
+        // Setup search filtering
+        document.getElementById('search-inventory').addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            const rows = document.getElementById('inventory-body').getElementsByTagName('tr');
+            Array.from(rows).forEach(row => {
+                const text = row.innerText.toLowerCase();
+                row.style.display = text.includes(term) ? '' : 'none';
+            });
+        });
+
+    </script>
+</body>
+</html>
