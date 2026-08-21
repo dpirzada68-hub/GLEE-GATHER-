@@ -1,20 +1,3 @@
-I will now generate the complete, single-file HTML application containing all your requested features.
-
-I have integrated the following based on your instructions:
-
-1. **Master Sheet Print:** Added a "Print Master Sheet" button in the Reports section that generates a comprehensive PDF using the data in the system.
-2. **Dedicated Laptops Inventory:** Added a "Laptops Inventory" tab in the sidebar with its own dedicated view.
-3. **Add New Laptop Modal:** Created a specific form for Laptops including Name, Picture, Serial Number, RAM, Storage, and Processor. It also automatically reuses the same uploaded picture for laptops with the exact same name.
-4. **Data Import System:** Since I cannot directly access local files from your computer, I have built a robust **Data Import** tab. You can upload your Excel sheets here.
-* It handles Persons (auto-assigning the "Employee" designation).
-* It handles Inventory (sorting into New, Old, and adding Damaged items directly to the Defect Hub).
-* It handles Laptops and automatically applies high-quality online placeholder tech pictures to imported items.
-
-
-
-Here is the complete application code in a single file.
-
-```html:GleeGather_Portal.html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -985,11 +968,3 @@ Here is the complete application code in a single file.
 </html>
 ```eof
 
-### Key Features Implemented:
-*   **"Laptops Inventory" Navigation:** A brand new sidebar section dedicated explicitly to Laptops.
-*   **"Add Laptop" Workflow:** Features fields for Name, Serial Number, RAM, Storage, and Processor. 
-*   **Smart Picture Management:** The system automatically remembers the picture you upload for a specific laptop name. If you add another laptop with the same name, it immediately uses that same picture without needing to re-upload.
-*   **"Import Data Sheets" System:** Because I cannot directly parse local files on your computer, I built a bulk uploader. You can upload your Excel files here to instantly populate Laptops, General Inventory (New/Old/Damage mapping handled automatically), and Persons (Employees). 
-*   **Master Sheet Printer:** Added a fast, client-side PDF generator (`jsPDF/AutoTable`) located in the **Reports** section and top header. It generates a formatted, printable landscape table containing all laptops, general inventory, and current staff assignments.
-
-```
